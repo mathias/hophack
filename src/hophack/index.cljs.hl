@@ -8,10 +8,29 @@
 
 ;; Map dimensions
 (def rows 10)
-(def cols 15)
+(def cols 30)
 
-;; number of actors per level, including the player
-(def max-actors 10)
+;; number of actors per level, not including the player
+(def max-actors 9)
+
+;; Letters A-Z: (65-90)
+
+;; keyboardMap[65];  // A
+;; ...
+;; keyboardMap[90];  // Z
+;; Digits 0-9: (48-57)
+;; Numpad:
+;; keyboardMap[48];  // 0
+;; ...
+;; keyboardMap[57];  // 9
+;; keyboardMap[13];   // ENTER
+;; Spacebar Key: (32)
+;; keyboardMap[32];   // SPACE
+;; Arrow Keys: (37-40)
+;; keyboardMap[37];   // LEFT
+;; keyboardMap[38];   // UP
+;; keyboardMap[39];   // RIGHT
+;; keyboardMap[40];   // DOWN
 
 (def non-letter-key-codes
   {
@@ -28,27 +47,6 @@
     (.fromCharCode js/String key-code)
     (non-letter-key-codes key-code)))
 
-;; Letters A-Z: (65-90)
-
-;; keyboardMap[65];  // A
-;; ...
-;; keyboardMap[90];  // Z
-;; Digits 0-9: (48-57)
-
-;; keyboardMap[48];  // 0
-;; ...
-;; keyboardMap[57];  // 9
-;; keyboardMap[13];   // ENTER
-;; Spacebar Key: (32)
-
-;; keyboardMap[32];   // SPACE
-;; Arrow Keys: (37-40)
-
-;; keyboardMap[37];   // LEFT
-;; keyboardMap[38];   // UP
-;; keyboardMap[39];   // RIGHT
-;; keyboardMap[40];   // DOWN
-
 (defn on-key-up
   [event]
   (let [keycode (.-keyCode event)
@@ -62,7 +60,10 @@
       (log key-translated))))
 
 ;; Game state cells
+
 (defc game-started? false)
+(def game-waiting-to-start? (cell= (not game-started?)))
+
 (defc game-map [])
 (def rendered-map
   (cell=
@@ -70,11 +71,17 @@
      (let [joined-locs (map clojure.string/join game-map)]
        (clojure.string/join "\n" joined-locs)))))
 
+(defc actors [])
+(def living-enemies
+  (cell= actors ;; select only living actors that aren't the player
+         ))
+
+
+;; game state manipulation
+
 (defn generate-loc
   []
-  (if (rand-gt 0.8)
-    "#"
-    "."))
+  (if (rand-gt 0.8) "#" "."))
 
 (defn generate-row []
   (take cols (repeatedly generate-loc)))
@@ -82,13 +89,41 @@
 (defn generate-map []
   (let [row-generator (repeatedly generate-row)
         rows (take rows row-generator)]
-    (reset! game-map rows)
-    (log (clj->js rows))))
+    (reset! game-map rows)))
+
+(defn generator-player []
+  {:x (.floor (/ cols 2) js/Math)
+   :y (.floor (/ rows 2) js/Math)
+   :hp 3})
+
+(defn empty-loc?
+  [x y]
+  (let [current-map @game-map
+        row (nth current-map y)
+        loc (nth row x)]
+  (= loc ".")))
+
+(defn generator-enemy []
+  (let [x1 (rand-int cols)
+        y1 (rand-int rows)]
+    (loop [x x1
+           y y1]
+      (if (empty-loc? x y)
+        {:x x :y y :hp 1}
+        (recur (rand-int cols) (rand-int rows))))))
+
+(defn create-actors
+  []
+  (let [enemies (take max-actors (repeatedly generator-enemy))]
+    (reset! actors enemies)))
+
+;; event handlers
 
 (defn start-game
   [e]
   (.preventDefault e)
   (generate-map)
+  (create-actors)
   (reset! game-started? true))
 
 (html
@@ -97,5 +132,6 @@
    (style "pre { font-size: 32px; }"))
   (body :keyup on-key-up
     (h1 "Hophack")
-    (button :click generate-map "Start!" :hide (not game-started?))
-    (pre (text "~{rendered-map}"))))
+    (button :click start-game "Start!" :toggle game-waiting-to-start?)
+    (pre (text "~{rendered-map}"))
+    (pre (text "~{actors}"))))
