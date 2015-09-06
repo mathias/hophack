@@ -1,0 +1,101 @@
+(page "index.html")
+
+;; Utility functions
+(def log #(.log js/console %))
+(def random #(.random js/Math))
+(defn rand-gt [threshold]
+  (> (random) threshold))
+
+;; Map dimensions
+(def rows 10)
+(def cols 15)
+
+;; number of actors per level, including the player
+(def max-actors 10)
+
+(def non-letter-key-codes
+  {
+   13 :enter
+   32 :spacebar
+   37 :left-arrow
+   38 :up-arrow
+   39 :right-arrow
+   40 :down-arrow})
+
+(defn translate-key-code
+  [key-code]
+  (if (and (>= key-code 65) (<= key-code 90))
+    (.fromCharCode js/String key-code)
+    (non-letter-key-codes key-code)))
+
+;; Letters A-Z: (65-90)
+
+;; keyboardMap[65];  // A
+;; ...
+;; keyboardMap[90];  // Z
+;; Digits 0-9: (48-57)
+
+;; keyboardMap[48];  // 0
+;; ...
+;; keyboardMap[57];  // 9
+;; keyboardMap[13];   // ENTER
+;; Spacebar Key: (32)
+
+;; keyboardMap[32];   // SPACE
+;; Arrow Keys: (37-40)
+
+;; keyboardMap[37];   // LEFT
+;; keyboardMap[38];   // UP
+;; keyboardMap[39];   // RIGHT
+;; keyboardMap[40];   // DOWN
+
+(defn on-key-up
+  [event]
+  (let [keycode (.-keyCode event)
+        key-translated (translate-key-code keycode)]
+    (condp = key-translated
+      :left-arrow true
+      :right-arrow true
+      :up-arrow true
+      :down-arrow true
+      ;; else:
+      (log key-translated))))
+
+;; Game state cells
+(defc game-started? false)
+(defc game-map [])
+(def rendered-map
+  (cell=
+   (when-not (empty? game-map)
+     (let [joined-locs (map clojure.string/join game-map)]
+       (clojure.string/join "\n" joined-locs)))))
+
+(defn generate-loc
+  []
+  (if (rand-gt 0.8)
+    "#"
+    "."))
+
+(defn generate-row []
+  (take cols (repeatedly generate-loc)))
+
+(defn generate-map []
+  (let [row-generator (repeatedly generate-row)
+        rows (take rows row-generator)]
+    (reset! game-map rows)
+    (log (clj->js rows))))
+
+(defn start-game
+  [e]
+  (.preventDefault e)
+  (generate-map)
+  (reset! game-started? true))
+
+(html
+  (head
+   (title "Hophack")
+   (style "pre { font-size: 32px; }"))
+  (body :keyup on-key-up
+    (h1 "Hophack")
+    (button :click generate-map "Start!" :hide (not game-started?))
+    (pre (text "~{rendered-map}"))))
