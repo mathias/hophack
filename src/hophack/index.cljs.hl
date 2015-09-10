@@ -64,46 +64,47 @@
 (defc game-started? false)
 (def game-waiting-to-start? (cell= (not game-started?)))
 
-(defc game-map [])
+(defc game-state [])
 (def rendered-map
   (cell=
-   (when-not (empty? game-map)
-     (let [joined-locs (map clojure.string/join game-map)]
+   (when-not (empty? game-state)
+     (let [loc-sprites (map #(map :sprite %) game-state)
+           joined-locs (map clojure.string/join loc-sprites)]
        (clojure.string/join "\n" joined-locs)))))
-
-(defc actors [])
-(def living-enemies
-  (cell= actors ;; select only living actors that aren't the player
-         ))
-
 
 ;; game state manipulation
 
 (defn generate-loc
   []
-  (if (rand-gt 0.8) "#" "."))
+  (if (rand-gt 0.8)
+    {:sprite "#"
+     :type :wall}
+    {:sprite "."
+     :type :ground}))
 
-(defn generate-row []
+(defn generate-row
+  []
   (take cols (repeatedly generate-loc)))
 
-(defn generate-map []
+(defn generate-map
+  [state]
   (let [row-generator (repeatedly generate-row)
         rows (take rows row-generator)]
-    (reset! game-map rows)))
+    rows))
 
-(defn generator-player []
+(defn generate-player []
   {:x (.floor (/ cols 2) js/Math)
    :y (.floor (/ rows 2) js/Math)
    :hp 3})
 
 (defn empty-loc?
   [x y]
-  (let [current-map @game-map
+  (let [current-map @game-state
         row (nth current-map y)
         loc (nth row x)]
   (= loc ".")))
 
-(defn generator-enemy []
+(defn generate-enemy []
   (let [x1 (rand-int cols)
         y1 (rand-int rows)]
     (loop [x x1
@@ -113,17 +114,19 @@
         (recur (rand-int cols) (rand-int rows))))))
 
 (defn create-actors
-  []
-  (let [enemies (take max-actors (repeatedly generator-enemy))]
-    (reset! actors enemies)))
+  [state]
+  (let [enemies (take max-actors (repeatedly  generate-enemy))]
+    state))
 
 ;; event handlers
 
 (defn start-game
   [e]
   (.preventDefault e)
-  (generate-map)
-  (create-actors)
+  (->> []
+       (generate-map)
+       (create-actors)
+       (reset! game-state))
   (reset! game-started? true))
 
 (html
@@ -133,5 +136,4 @@
   (body :keyup on-key-up
     (h1 "Hophack")
     (button :click start-game "Start!" :toggle game-waiting-to-start?)
-    (pre (text "~{rendered-map}"))
-    (pre (text "~{actors}"))))
+    (pre (text "~{rendered-map}"))))
